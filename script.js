@@ -21,12 +21,13 @@ var MultiScene = {
     set_scenes: function (id) {
         this.scene_id = id;
         this.sname = 'scene' + id;
-
+        
+        let start = this.json[this.sname]['start_position'];
         this.scenes = {
             Scene: {
                 name: 'Main',
                 url: './models/gltf/main/glTF/' + this.json[this.sname]['gltf'] + '.gltf',
-                cameraPos: new THREE.Vector3(1000, 0, 0),
+                cameraPos: new THREE.Vector3(start['x'], start['y'], start['z']),
                 animationTime: 4,
                 extensions: ['glTF']
             }
@@ -296,6 +297,7 @@ var MultiScene = {
 
             this.filterGodRays(this.postprocessing.rtTextureDepthMask.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[0]));
 
+
             this.filterGodRays(this.postprocessing.rtTextureGodRays2.texture, this.postprocessing.rtTextureGodRays1, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[1]));
 
             this.filterGodRays(this.postprocessing.rtTextureGodRays1.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[2]));
@@ -504,11 +506,7 @@ var MultiScene = {
         for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
             MultiScene.scene.remove(MultiScene.scene.children[i]);
         }
-        if(this.scene_id === 2){
-            this.scene_id = 0;
-        }
         this.set_scenes((this.scene_id + 1));
-        
         this.camera_create();
         MultiScene.onload();
     }
