@@ -4,13 +4,13 @@
  * three.js / https://threejs.org/
  */
 
-import * as THREE from '../build/three.module.js';
+import * as THREE from '/three/build/three.module.js';
 
-import { TrackballControls } from './jsm/controls/TrackballControls.js';
-import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
-import { DDSLoader } from './jsm/loaders/DDSLoader.js';
+import { TrackballControls } from '/three/jsm/controls/TrackballControls.js';
+import { GLTFLoader } from '/three/jsm/loaders/GLTFLoader.js';
+import { DDSLoader } from '/three/jsm/loaders/DDSLoader.js';
 
-import { GodRaysFakeSunShader, GodRaysDepthMaskShader, GodRaysCombineShader, GodRaysGenerateShader } from './jsm/shaders/GodRaysShader.js';
+import { GodRaysFakeSunShader, GodRaysDepthMaskShader, GodRaysCombineShader, GodRaysGenerateShader } from '/three/jsm/shaders/GodRaysShader.js';
 
 var MultiScene = {
 
@@ -21,12 +21,12 @@ var MultiScene = {
     set_scenes: function (id) {
         this.scene_id = id;
         this.sname = 'scene' + id;
-        
+
         let start = this.json[this.sname]['start_position'];
         this.scenes = {
             Scene: {
                 name: 'Main',
-                url: './models/gltf/main/glTF/' + this.json[this.sname]['gltf'] + '.gltf',
+                url: '/assets/meta/multi/models/gltf/' + this.json[this.sname]['gltf'] + '.gltf',
                 cameraPos: new THREE.Vector3(start['x'], start['y'], start['z']),
                 animationTime: 4,
                 extensions: ['glTF']
@@ -43,7 +43,8 @@ var MultiScene = {
     init: function (gltf) {
 
         this.set_scenes(gltf);
-
+        this.mobile = false;
+        this.mob_delta = 0;
         this.clock = new THREE.Clock();
         this.container = document.getElementById('container');
 
@@ -106,6 +107,7 @@ var MultiScene = {
         this.extra();
 
         this.init_scene(this.scenes[ 'Scene' ]);
+
     },
 
     extra: function () {
@@ -126,8 +128,8 @@ var MultiScene = {
             }
         }
     },
-    
-    gltf_load: function(url, time) {
+
+    gltf_load: function (url, time) {
         let loader = new GLTFLoader();
         loader.setDDSLoader(new DDSLoader());
         var self = this;
@@ -149,12 +151,15 @@ var MultiScene = {
             self.animate();
             $('#preload').remove();
             $('#container').css('opacity', 1);
+            $('#play').css('opacity', '0.5');
+            $('.mob_help').css('opacity', '1');
         }, undefined, function (error) {
             console.error(error);
         });
     },
 
     init_scene: function (sceneInfo) {
+        
         let fog = this.json[this.sname]['fog'];
 
         this.scene.fog = new THREE.Fog(new THREE.Color(fog.color), fog.near, fog.far);
@@ -187,6 +192,7 @@ var MultiScene = {
         this.gltf_load(sceneInfo.url, sceneInfo.animationTime);
 
         this.camera.position.copy(sceneInfo.cameraPos);
+        
     },
 
     add_obj: function (obj) {
@@ -236,7 +242,7 @@ var MultiScene = {
 
     post_render: function () {
         if (this.postprocessing.enabled) {
-            
+
             this.clipPosition.x = this.sunPosition.x;
             this.clipPosition.y = this.sunPosition.y;
             this.clipPosition.z = this.sunPosition.z;
@@ -327,7 +333,7 @@ var MultiScene = {
         let loader = new THREE.TextureLoader();
         let geometry, material;
         let self = this;
-        loader.load('texture/img/' + name + '.png', function (texture) {
+        loader.load('/assets/meta/multi/texture' + name + '.png', function (texture) {
             geometry = new THREE.BoxGeometry(Math.random(2, 4), 50, 25);
             material = new THREE.MeshBasicMaterial({map: texture});
             let cube = new THREE.Mesh(geometry, material);
@@ -346,7 +352,7 @@ var MultiScene = {
         let loader = new THREE.TextureLoader();
         let txt = Math.floor(Math.random() * Math.floor(14)) + 1;
         let self = this;
-        loader.load('texture/' + txt + '.png', function (texture) {
+        loader.load('/assets/meta/multi/texture/' + txt + '.png', function (texture) {
             let rnd = self.rand_int(1, 50);
             let geometry = new THREE.BoxGeometry(rnd, rnd, rnd);
             let material = new THREE.MeshBasicMaterial({map: texture});
@@ -366,7 +372,7 @@ var MultiScene = {
     add_sphere: function () {
         let loader = new THREE.TextureLoader();
         let self = this;
-        loader.load('texture/bone.jpg', function (texture) {
+        loader.load('/assets/meta/multi/texture/bone.jpg', function (texture) {
             let geometry = new THREE.SphereGeometry(self.rand_int(1, 80), self.rand_int(1, 50), self.rand_int(1, 30), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20));
             let material = new THREE.MeshBasicMaterial({map: texture});
             let sphere = new THREE.Mesh(geometry, material);
@@ -404,10 +410,16 @@ var MultiScene = {
     },
 
     onWheel: function (e) {
-        e = e || window.event;
 
-        let delta = e.deltaY || e.detail || e.wheelDelta;
-        
+        let delta;
+        if (this.mobile) {
+            delta = this.mob_delta;
+            MultiScene.scroll_dist = 10;
+        } else {
+            e = e || window.event;
+            delta = (e !== undefined) ? e.deltaY || e.detail || e.wheelDelta : 20;
+        }
+
         delta = MultiScene.do_step(delta);
         MultiScene.figure_scroll_rotate(delta);
         MultiScene.rotate_scene(delta);
@@ -500,30 +512,61 @@ var MultiScene = {
     },
 
     refresh: function () {
-        MultiScene.step = 0;
-        MultiScene.scroll_dist = 5;
-        MultiScene.camera.position.x = 1000;
+        this.scene.rotation.x = 0;
+        if (this.scene_id + 1 === 14) {
+            setTimeout(MultiScene.end_scenes, 700);
+        } else {
+            MultiScene.step = 0;
+            MultiScene.scroll_dist = 5;
+            MultiScene.camera.position.x = 1000;
+            for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
+                MultiScene.scene.remove(MultiScene.scene.children[i]);
+            }
+            this.set_scenes((this.scene_id + 1));
+            this.camera_create();
+            MultiScene.onload();
+        }
+    },
+    end_scenes: function () {
         for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
             MultiScene.scene.remove(MultiScene.scene.children[i]);
         }
-        this.set_scenes((this.scene_id + 1));
-        this.camera_create();
-        MultiScene.onload();
     }
 };
 
 MultiScene.json_load(json);
-
 MultiScene.init(1);
 MultiScene.onload();
 
-var elem = document.getElementsByTagName('canvas')[0];
+$('#loader').on('mousewheel', function (e) {
+    $.doTimeout('a_scroll');
 
-if (elem.addEventListener) {
-    if ('onwheel' in document) {
-        elem.addEventListener("wheel", MultiScene.onWheel);
+    MultiScene.onWheel();
+});
+
+var lastY;
+$('#loader').on('touchmove', function (e) {
+
+    MultiScene.mobile = true;
+    var currentY = e.originalEvent.touches[0].clientY;
+    MultiScene.mob_delta = (currentY > lastY) ? -1 : 1;
+    lastY = currentY;
+    $('#loader').trigger('mousewheel');
+});
+
+var sauto = false;
+$('#play').click(function () {
+
+    if (sauto) {
+        sauto = false;
+        $.doTimeout('a_scroll');
+        $('#play').removeClass("auto_scroll_on");
     } else {
-        elem.addEventListener("MozMousePixelScroll", MultiScene.onWheel);
+        sauto = true;
+        $('#play').addClass("auto_scroll_on");
+        $.doTimeout('a_scroll', 200, function () {
+            MultiScene.onWheel();
+            return true;
+        });
     }
-}
-
+});
