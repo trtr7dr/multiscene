@@ -1,10 +1,10 @@
 var json = {
-    "scene1": {
+     "scene1": {
         "name": "scull",
-        "gltf": "train",
+        "gltf": "scene",
         "perspective": 35,
         "background": "black",
-        "ambient": "rgb(0, 255, 238)",
+        "ambient": "rgb(0, 255, 0)",
         'start_position': {
             "x": 1000,
             "y": 0,
@@ -13,7 +13,7 @@ var json = {
         "light": {
             'sky': "rgb(255, 0, 0)",
             'color': "rgb(255, 0, 102)",
-            'power': 1
+            'power': 2
         },
         "spot": {
             "color": "rgb(255, 255, 255)",
@@ -31,19 +31,23 @@ var json = {
             "sun": "0x000000",
             "position": {
                 "x": -1000,
-                "y": 0,
-                "z": 0 
+                "y": 1200,
+                "z": 300 
             },
             "params": {
-                0: 1.0,
+                0: 2.0,
                 1: 2.0,
                 2: 3.0
             }
         },
         "path": {
             "0": [1000, 0, 0],
-            "1": [0, 0, 0],
-            "2": [-400, -50, 0]
+            "1": [750, -200, -400],
+            "2": [600, 200, 400],
+            "3": [500, -100, 0],
+            "4": [200, 20, 0],
+            "5": [0, 0, 0],
+            "6": [-400, 0, 0]
         },
         "fog": {
             "color": "rgb(0, 0, 0)",
@@ -51,12 +55,11 @@ var json = {
             "far": 1000
         },
         "extra_func": [
-            'rotate_scene'
         ],
-        "slow_end_speed": false,
+        "slow_end_speed": true,
         "css": {
-            "filter": "sepia(1) blur(1px) hue-rotate(150deg)" 
+            "filter": "sepia(1) blur(1px)" 
         },
-        "debug": false
+        "debug": true
     }
 };
