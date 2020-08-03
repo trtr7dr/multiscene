@@ -58,6 +58,40 @@ var MultiScene = {
             'cubes': [],
             'sphere': []
         };
+        
+        this.lookSpeed = 0.5;
+        this.view = {
+            "x": 0,
+            "y": 0,
+            "z": 0
+        };
+        this.lookFlag = false;
+        this.keys = {
+            'top': {
+                'down': false,
+                'code': 87,
+                'param': 1,
+                'axis': 'y'
+            },
+            'bottom': {
+                'down': false,
+                'code': 83,
+                'param': -1,
+                'axis': 'y'
+            },
+            'left': {
+                'down': false,
+                'code': 68,
+                'param': -1,
+                'axis': 'z'
+            },
+            'right': {
+                'down': false,
+                'code': 65,
+                'param': 1,
+                'axis': 'z'
+            }
+        };
 
         this.postprocessing = {enabled: this.json[this.sname]['ray']['enabled']};
         this.godrayRenderTargetResolutionMultiplier = 1.0 / 4.0;
@@ -101,11 +135,9 @@ var MultiScene = {
 
         this.post_preparation();
         this.init_postprocessing(window.innerWidth, window.innerHeight);
-
+        
         this.set_path();
-
         this.extra();
-
         this.init_scene(this.scenes[ 'Scene' ]);
 
     },
@@ -153,6 +185,7 @@ var MultiScene = {
             $('#container').css('opacity', 1);
             $('#play').css('opacity', '0.5');
             $('.mob_help').css('opacity', '1');
+            $('#wsda').css('opacity', '0.5');
         }, undefined, function (error) {
             console.error(error);
         });
@@ -185,12 +218,9 @@ var MultiScene = {
         spotlight.shadow.mapSize.width = 2048;
         spotlight.shadow.mapSize.height = 2048;
         this.scene.add(spotlight);
-
         this.renderer.shadowMap.enabled = true; //?
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
         this.gltf_load(sceneInfo.url, sceneInfo.animationTime);
-
         this.camera.position.copy(sceneInfo.cameraPos);
         
     },
@@ -510,10 +540,52 @@ var MultiScene = {
         this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
         this.postprocessing.scene.overrideMaterial = null;
     },
+    
+    lookStop: function (e) {
+        
+        let r = false;
+        for (var key in MultiScene.keys) {
+            if(e === MultiScene.keys[key].code){
+                MultiScene.keys[key].down = false;
+            }
+            r += MultiScene.keys[key].down;
+        }
+        if(r === 0){
+            MultiScene.lookFlag = false;
+        }
+    },
+
+    lookAtTarget: function (e) {
+        for (var key in MultiScene.keys) {
+            if(e === MultiScene.keys[key]['code']){
+                MultiScene.keys[key].down = true;
+                MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param']; 
+            }
+        }
+        if(!MultiScene.lookFlag){
+            MultiScene.lookFlag = true;
+            $.doTimeout('look', 1, function () {
+                for (var key in MultiScene.keys) {
+                    if(MultiScene.keys[key].down){
+                        MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param']; 
+                    }
+                }
+                MultiScene.controls.target = new THREE.Vector3(MultiScene.view.x, MultiScene.view.y, MultiScene.view.z);
+                if(MultiScene.lookFlag){
+                    return true;
+                }else{
+                    return false;
+                }
+            });
+        }
+    },
 
     refresh: function () {
+        AudioControlls.effects();
         this.scene.rotation.x = 0;
         if (this.scene_id + 1 === 14) {
+            $('#loader').css('opacity', '0');
+            $('.container').css('display', 'block');
             setTimeout(MultiScene.end_scenes, 700);
         } else {
             MultiScene.step = 0;
@@ -531,6 +603,13 @@ var MultiScene = {
         for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
             MultiScene.scene.remove(MultiScene.scene.children[i]);
         }
+        $('#loader').remove();
+        $('.container').css({
+            'opacity': '1'
+        });
+        $('.footer').css({
+            'display': 'block'
+        });
     }
 };
 
@@ -540,7 +619,7 @@ MultiScene.onload();
 
 $('#loader').on('mousewheel', function (e) {
     $.doTimeout('a_scroll');
-
+    $('#play').removeClass("auto_scroll_on");
     MultiScene.onWheel();
 });
 
@@ -553,6 +632,21 @@ $('#loader').on('touchmove', function (e) {
     lastY = currentY;
     $('#loader').trigger('mousewheel');
 });
+
+function drop_help() {
+    $('.mob_help').css('display', 'none');
+}
+function drop_wsda() {
+    $('#wsda').css('opacity', '0');
+}
+
+if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(navigator.userAgent)) {
+    $('.mob_help').css('display', 'block');
+    setTimeout(drop_help, 10000);
+    $('#wsda').css('display', 'none');
+}else{
+    setTimeout(drop_wsda, 15000);
+}
 
 var sauto = false;
 $('#play').click(function () {
@@ -570,3 +664,68 @@ $('#play').click(function () {
         });
     }
 });
+
+$("body").keydown( function (e) {
+    MultiScene.lookAtTarget(e.which);
+});
+
+$("body").keyup( function (e) {
+    MultiScene.lookStop(e.which); 
+});
+
+var AudioControlls = {
+    init: function (path) {
+        let self = this;
+        this.audio = new Pizzicato.Sound(path, function () {
+            $('#mute').css('opacity', 0.5);
+        });
+        this.audio.loop = true;
+        self.distortion = new Pizzicato.Effects.Distortion({
+            gain: 0
+        });
+        this.gain = 0;
+        this.d = 1;
+    },
+    effects: function () {
+        let self = this;
+        $.doTimeout('gains', 30, function () {
+            self.audio.removeEffect(self.distortion);
+            self.gain += 0.01 * self.d;
+            if(self.gain > 0.9){
+                self.d = -1;
+            }
+            if(self.gain <= 0 && self.d === -1){
+                self.audio.removeEffect(self.distortion);
+                self.gain = 0;
+                self.d = 1;
+                return false;
+            }
+            self.distortion = new Pizzicato.Effects.Distortion({
+                gain: self.gain
+            });
+            self.audio.addEffect(self.distortion);
+            return true;
+        });
+    },
+    pause: function(){
+        this.audio.pause();
+    },
+    play: function(){
+        this.audio.play();
+    }
+};
+
+var audio = false;
+$('#mute').click(function () {
+    if(audio){
+        audio = false;
+        AudioControlls.pause();
+        $('#sound_img').attr('src', '/assets/meta/multi/unmute.svg');
+    }else{
+        audio = true;
+        AudioControlls.play();
+        $('#sound_img').attr('src', '/assets/meta/multi/mute.svg');
+    }
+});
+
+AudioControlls.init('/assets/meta/multi/Fatal-Свобода_внутри_пустоты.mp3');
