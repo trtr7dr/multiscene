@@ -4,6 +4,8 @@
  * three.js / https://threejs.org/
  */
 
+"use strict";
+
 import * as THREE from '/three/build/three.module.js';
 
 import { TrackballControls } from '/three/jsm/controls/TrackballControls.js';
@@ -155,7 +157,7 @@ var MultiScene = {
             }
         }
         if (mark.indexOf('add_sphere') !== -1) {
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 5; i++) {
                 this.add_sphere();
             }
         }
@@ -181,11 +183,7 @@ var MultiScene = {
             self.add_obj(object);
             self.on_window_resize();
             self.animate();
-            $('#preload').remove();
-            $('#container').css('opacity', 1);
-            $('#play').css('opacity', '0.5');
-            $('.mob_help').css('opacity', '1');
-            $('#wsda').css('opacity', '0.5');
+            HTMLControlls.gltfReady();
         }, undefined, function (error) {
             console.error(error);
         });
@@ -237,7 +235,8 @@ var MultiScene = {
 
     animate: function () {
         requestAnimationFrame(MultiScene.animate);
-        MultiScene.mixer.update(MultiScene.clock.getDelta());
+        if(MultiScene.json[MultiScene.sname]['animation'])
+            MultiScene.mixer.update(MultiScene.clock.getDelta());
         MultiScene.controls.update();
         MultiScene.render();
     },
@@ -272,77 +271,52 @@ var MultiScene = {
 
     post_render: function () {
         if (this.postprocessing.enabled) {
-
             this.clipPosition.x = this.sunPosition.x;
             this.clipPosition.y = this.sunPosition.y;
             this.clipPosition.z = this.sunPosition.z;
             this.clipPosition.w = 1;
-
             this.clipPosition.applyMatrix4(this.camera.matrixWorldInverse).applyMatrix4(this.camera.projectionMatrix);
             this.clipPosition.x /= this.clipPosition.w;
             this.clipPosition.y /= this.clipPosition.w;
-
             this.screenSpacePosition.x = (this.clipPosition.x + 1) / 2; // transform from [-1,1] to [0,1]
             this.screenSpacePosition.y = (this.clipPosition.y + 1) / 2; // transform from [-1,1] to [0,1]
             this.screenSpacePosition.z = this.clipPosition.z; // needs to stay in clip space for visibilty checks
-
             this.postprocessing.godrayGenUniforms.vSunPositionScreenSpace.value.copy(this.screenSpacePosition);
             this.postprocessing.godraysFakeSunUniforms.vSunPositionScreenSpace.value.copy(this.screenSpacePosition);
-
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
             this.renderer.clear(true, true, false);
-
             var sunsqH = 0.8 * window.innerHeight; // 0.74 depends on extent of sun from shader
             var sunsqW = 0.8 * window.innerHeight; // both depend on height because sun is aspect-corrected
-
             this.screenSpacePosition.x *= window.innerWidth;
             this.screenSpacePosition.y *= window.innerHeight;
-
             this.renderer.setScissor(this.screenSpacePosition.x - sunsqW / 2, this.screenSpacePosition.y - sunsqH / 2, sunsqW, sunsqH);
             this.renderer.setScissorTest(true);
-
             this.postprocessing.godraysFakeSunUniforms[ "fAspect" ].value = window.innerWidth / window.innerHeight;
-
             this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysFakeSun;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
             this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
-
             this.renderer.setScissorTest(false);
-
             this.scene.overrideMaterial = null;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
             this.renderer.render(this.scene, this.camera);
 
             // Depth
-
             this.scene.overrideMaterial = this.materialDepth;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureDepth);
             this.renderer.clear();
             this.renderer.render(this.scene, this.camera);
-
-
             this.postprocessing.godrayMaskUniforms[ "tInput" ].value = this.postprocessing.rtTextureDepth.texture;
-
             this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysDepthMask;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureDepthMask);
             this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
-
             var filterLen = .8;
-
             var TAPS_PER_PASS = 6.0;
-
             this.filterGodRays(this.postprocessing.rtTextureDepthMask.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[0]));
-
-
             this.filterGodRays(this.postprocessing.rtTextureGodRays2.texture, this.postprocessing.rtTextureGodRays1, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[1]));
-
             this.filterGodRays(this.postprocessing.rtTextureGodRays1.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[2]));
-
             this.postprocessing.godrayCombineUniforms[ "tColors" ].value = this.postprocessing.rtTextureColors.texture;
             this.postprocessing.godrayCombineUniforms[ "tGodRays" ].value = this.postprocessing.rtTextureGodRays2.texture;
-
             this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysCombine;
-
             this.renderer.setRenderTarget(null);
             this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
             this.postprocessing.scene.overrideMaterial = null;
@@ -403,7 +377,7 @@ var MultiScene = {
         let loader = new THREE.TextureLoader();
         let self = this;
         loader.load('/assets/meta/multi/texture/bone.jpg', function (texture) {
-            let geometry = new THREE.SphereGeometry(self.rand_int(1, 80), self.rand_int(1, 50), self.rand_int(1, 30), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20));
+            let geometry = new THREE.SphereGeometry(self.rand_int(1, 10), self.rand_int(1, 10), self.rand_int(1, 10), self.rand_int(1, 20), self.rand_int(1, 10), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20));
             let material = new THREE.MeshBasicMaterial({map: texture});
             let sphere = new THREE.Mesh(geometry, material);
             sphere.position.x = self.rand_int(-400, 400);
@@ -459,6 +433,9 @@ var MultiScene = {
         MultiScene.scroll_do('z', curve_coord);
         MultiScene.scroll_do('x', curve_coord);
         MultiScene.scroll_dist = MultiScene.speed_in_end(5);
+        
+        if(!MultiScene.json[MultiScene.sname]['animation'])
+            MultiScene.mixer.update(curve_coord.x / 2000);
     },
 
     speed_in_end: function (max_speed) {
@@ -581,13 +558,16 @@ var MultiScene = {
     },
 
     refresh: function () {
-        AudioControlls.effects();
+        if (AudioControlls.flag){
+            AudioControlls.effects();
+        }
         this.scene.rotation.x = 0;
         if (this.scene_id + 1 === 14) {
-            $('#loader').css('opacity', '0');
-            $('.container').css('display', 'block');
+            HTMLControlls.lastScene();
             setTimeout(MultiScene.end_scenes, 700);
         } else {
+            MultiScene.figure.cubes = [];
+            MultiScene.figure.sphere = [];
             MultiScene.step = 0;
             MultiScene.scroll_dist = 5;
             MultiScene.camera.position.x = 1000;
@@ -603,15 +583,11 @@ var MultiScene = {
         for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
             MultiScene.scene.remove(MultiScene.scene.children[i]);
         }
-        $('#loader').remove();
-        $('.container').css({
-            'opacity': '1'
-        });
-        $('.footer').css({
-            'display': 'block'
-        });
+        HTMLControlls.endScene();
     }
 };
+
+// Старт событий и таймеров
 
 MultiScene.json_load(json);
 MultiScene.init(1);
@@ -633,19 +609,10 @@ $('#loader').on('touchmove', function (e) {
     $('#loader').trigger('mousewheel');
 });
 
-function drop_help() {
-    $('.mob_help').css('display', 'none');
-}
-function drop_wsda() {
-    $('#wsda').css('opacity', '0');
-}
-
 if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(navigator.userAgent)) {
-    $('.mob_help').css('display', 'block');
-    setTimeout(drop_help, 10000);
-    $('#wsda').css('display', 'none');
+    HTMLControlls.mobileIcon();
 }else{
-    setTimeout(drop_wsda, 15000);
+    setTimeout(HTMLControlls.drop_wsda, 15000);
 }
 
 var sauto = false;
@@ -673,59 +640,3 @@ $("body").keyup( function (e) {
     MultiScene.lookStop(e.which); 
 });
 
-var AudioControlls = {
-    init: function (path) {
-        let self = this;
-        this.audio = new Pizzicato.Sound(path, function () {
-            $('#mute').css('opacity', 0.5);
-        });
-        this.audio.loop = true;
-        self.distortion = new Pizzicato.Effects.Distortion({
-            gain: 0
-        });
-        this.gain = 0;
-        this.d = 1;
-    },
-    effects: function () {
-        let self = this;
-        $.doTimeout('gains', 30, function () {
-            self.audio.removeEffect(self.distortion);
-            self.gain += 0.01 * self.d;
-            if(self.gain > 0.9){
-                self.d = -1;
-            }
-            if(self.gain <= 0 && self.d === -1){
-                self.audio.removeEffect(self.distortion);
-                self.gain = 0;
-                self.d = 1;
-                return false;
-            }
-            self.distortion = new Pizzicato.Effects.Distortion({
-                gain: self.gain
-            });
-            self.audio.addEffect(self.distortion);
-            return true;
-        });
-    },
-    pause: function(){
-        this.audio.pause();
-    },
-    play: function(){
-        this.audio.play();
-    }
-};
-
-var audio = false;
-$('#mute').click(function () {
-    if(audio){
-        audio = false;
-        AudioControlls.pause();
-        $('#sound_img').attr('src', '/assets/meta/multi/unmute.svg');
-    }else{
-        audio = true;
-        AudioControlls.play();
-        $('#sound_img').attr('src', '/assets/meta/multi/mute.svg');
-    }
-});
-
-AudioControlls.init('/assets/meta/multi/Fatal-Свобода_внутри_пустоты.mp3');
