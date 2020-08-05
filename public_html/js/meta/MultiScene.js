@@ -60,7 +60,7 @@ var MultiScene = {
             'cubes': [],
             'sphere': []
         };
-        
+
         this.lookSpeed = 0.5;
         this.view = {
             "x": 0,
@@ -68,30 +68,35 @@ var MultiScene = {
             "z": 0
         };
         this.lookFlag = false;
+        this.smoothing = 50;
         this.keys = {
             'top': {
                 'down': false,
                 'code': 87,
                 'param': 1,
-                'axis': 'y'
+                'axis': 'y',
+                'smooth': false
             },
             'bottom': {
                 'down': false,
                 'code': 83,
                 'param': -1,
-                'axis': 'y'
+                'axis': 'y',
+                'smooth': false
             },
             'left': {
                 'down': false,
                 'code': 68,
                 'param': -1,
-                'axis': 'z'
+                'axis': 'z',
+                'smooth': false
             },
             'right': {
                 'down': false,
                 'code': 65,
                 'param': 1,
-                'axis': 'z'
+                'axis': 'z',
+                'smooth': false
             }
         };
 
@@ -137,7 +142,7 @@ var MultiScene = {
 
         this.post_preparation();
         this.init_postprocessing(window.innerWidth, window.innerHeight);
-        
+
         this.set_path();
         this.extra();
         this.init_scene(this.scenes[ 'Scene' ]);
@@ -190,7 +195,7 @@ var MultiScene = {
     },
 
     init_scene: function (sceneInfo) {
-        
+
         let fog = this.json[this.sname]['fog'];
 
         this.scene.fog = new THREE.Fog(new THREE.Color(fog.color), fog.near, fog.far);
@@ -220,7 +225,7 @@ var MultiScene = {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.gltf_load(sceneInfo.url, sceneInfo.animationTime);
         this.camera.position.copy(sceneInfo.cameraPos);
-        
+
     },
 
     add_obj: function (obj) {
@@ -235,7 +240,7 @@ var MultiScene = {
 
     animate: function () {
         requestAnimationFrame(MultiScene.animate);
-        if(MultiScene.json[MultiScene.sname]['animation'])
+        if (MultiScene.json[MultiScene.sname]['animation'])
             MultiScene.mixer.update(MultiScene.clock.getDelta());
         MultiScene.controls.update();
         MultiScene.render();
@@ -433,8 +438,8 @@ var MultiScene = {
         MultiScene.scroll_do('z', curve_coord);
         MultiScene.scroll_do('x', curve_coord);
         MultiScene.scroll_dist = MultiScene.speed_in_end(5);
-        
-        if(!MultiScene.json[MultiScene.sname]['animation'])
+
+        if (!MultiScene.json[MultiScene.sname]['animation'])
             MultiScene.mixer.update(curve_coord.x / 2000);
     },
 
@@ -517,40 +522,48 @@ var MultiScene = {
         this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
         this.postprocessing.scene.overrideMaterial = null;
     },
-    
+
     lookStop: function (e) {
-        
+
         let r = false;
         for (var key in MultiScene.keys) {
-            if(e === MultiScene.keys[key].code){
+            if (e === MultiScene.keys[key].code) {
                 MultiScene.keys[key].down = false;
+                MultiScene.keys[key].smooth = true;
             }
             r += MultiScene.keys[key].down;
         }
-        if(r === 0){
+        if (r === 0) {
             MultiScene.lookFlag = false;
         }
     },
 
     lookAtTarget: function (e) {
         for (var key in MultiScene.keys) {
-            if(e === MultiScene.keys[key]['code']){
+            if (e === MultiScene.keys[key]['code']) {
                 MultiScene.keys[key].down = true;
-                MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param']; 
+                MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param'];
+
             }
         }
-        if(!MultiScene.lookFlag){
+        if (!MultiScene.lookFlag) {
             MultiScene.lookFlag = true;
-            $.doTimeout('look', 1, function () {
+            MultiScene.smoothing = 50;
+            $.doTimeout('look', 20, function () {
                 for (var key in MultiScene.keys) {
-                    if(MultiScene.keys[key].down){
-                        MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param']; 
+                    if (MultiScene.keys[key].down || MultiScene.keys[key].smooth) {
+                        MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param'] + MultiScene.smoothing / 200;
+                        if(MultiScene.smoothing <= 1){
+                            MultiScene.keys[key].smooth = false;
+                        }
                     }
                 }
                 MultiScene.controls.target = new THREE.Vector3(MultiScene.view.x, MultiScene.view.y, MultiScene.view.z);
-                if(MultiScene.lookFlag){
+                if (MultiScene.lookFlag || MultiScene.smoothing > 1) {
+                    MultiScene.smoothing = (MultiScene.smoothing <= 1) ? 50 : MultiScene.smoothing - 1;
                     return true;
-                }else{
+                } else {
+
                     return false;
                 }
             });
@@ -558,7 +571,7 @@ var MultiScene = {
     },
 
     refresh: function () {
-        if (AudioControlls.flag){
+        if (AudioControlls.flag) {
             AudioControlls.effects();
         }
         this.scene.rotation.x = 0;
@@ -611,7 +624,7 @@ $('#loader').on('touchmove', function (e) {
 
 if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phone|Kindle|Silk|Opera Mini/i.test(navigator.userAgent)) {
     HTMLControlls.mobileIcon();
-}else{
+} else {
     setTimeout(HTMLControlls.drop_wsda, 15000);
 }
 
@@ -632,11 +645,11 @@ $('#play').click(function () {
     }
 });
 
-$("body").keydown( function (e) {
+$("body").keydown(function (e) {
     MultiScene.lookAtTarget(e.which);
 });
 
-$("body").keyup( function (e) {
-    MultiScene.lookStop(e.which); 
+$("body").keyup(function (e) {
+    MultiScene.lookStop(e.which);
 });
 
