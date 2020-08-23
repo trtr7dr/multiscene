@@ -14,13 +14,14 @@ import { DDSLoader } from '/three/jsm/loaders/DDSLoader.js';
 
 import { GodRaysFakeSunShader, GodRaysDepthMaskShader, GodRaysCombineShader, GodRaysGenerateShader } from '/three/jsm/shaders/GodRaysShader.js';
 
-var MultiScene = {
+class MultiScene {
 
-    json_load: function (data) {
+    constructor(data) {
         this.json = data;
-    },
+        
+    }
 
-    set_scenes: function (id) {
+    set_scenes(id) {
         this.scene_id = id;
         this.sname = 'scene' + id;
 
@@ -34,16 +35,16 @@ var MultiScene = {
                 extensions: ['glTF']
             }
         };
-    },
+    }
 
-    camera_create: function () {
+    camera_create() {
+        this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 1000;
         this.controls.enabled = false;
-    },
+    }
 
-    init: function (gltf) {
-
+    init(gltf) {
         this.set_scenes(gltf);
         this.mobile = false;
         this.mob_delta = 0;
@@ -51,15 +52,11 @@ var MultiScene = {
         this.container = document.getElementById('container');
 
         this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-        this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
+        //this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.scene = new THREE.Scene();
         this.camera_create();
         this.step = 0;
         this.scroll_dist = 5;
-        this.figure = {
-            'cubes': [],
-            'sphere': []
-        };
 
         this.lookSpeed = 0.5;
         this.view = {
@@ -100,12 +97,13 @@ var MultiScene = {
             }
         };
 
-        this.postprocessing = {enabled: this.json[this.sname]['ray']['enabled']};
+        
         this.godrayRenderTargetResolutionMultiplier = 1.0 / 4.0;
-        this.renderer.autoClear = false;
-    },
+        this.renderer.autoClear = true;
+        window.addEventListener('resize', this.on_window_resize, false);
+    }
 
-    set_path: function () {
+    set_path() {
         let dots = this.json[this.sname]['path'];
         let vectors = [];
         for (let i = 0; i < Object.keys(dots).length; i++) {
@@ -121,35 +119,42 @@ var MultiScene = {
             let curveObject = new THREE.Line(geometry, material);
             this.scene.add(curveObject);
         }
-    },
+    }
 
-    post_preparation: function () {
+    post_preparation() {
+        
         let ray = this.json[this.sname]['ray'];
         this.sunColor = ray.sun;
         this.sunPosition = new THREE.Vector3(ray.position.x, ray.position.y, ray.position.z);
         this.clipPosition = new THREE.Vector4();
         this.screenSpacePosition = new THREE.Vector3();
-    },
+    }
 
-    onload: function () {
+    onload() {
+        delete this.scene;
+        this.scene = new THREE.Scene();
+        this.figure = {
+            'cubes': [],
+            'sphere': []
+        };
+
         this.container.style.background = this.json[this.sname]['background'];
         this.container.style.filter = this.json[this.sname]['css']['filter'];
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.physicallyCorrectLights = true;
         this.container.appendChild(this.renderer.domElement);
-        window.addEventListener('resize', this.on_window_resize, false);
 
+        this.postprocessing = {enabled: this.json[this.sname]['ray']['enabled']};
         this.post_preparation();
         this.init_postprocessing(window.innerWidth, window.innerHeight);
 
         this.set_path();
         this.extra();
         this.init_scene(this.scenes[ 'Scene' ]);
+    }
 
-    },
-
-    extra: function () {
+    extra() {
         let mark = this.json[this.sname]['extra_func'];
         if (mark.indexOf('add_img') !== -1) {
             this.add_img(1, [750, -100, -100]);
@@ -166,23 +171,23 @@ var MultiScene = {
                 this.add_sphere();
             }
         }
-    },
+    }
 
-    gltf_load: function (url, time) {
+    gltf_load(url, time) {
         let loader = new GLTFLoader();
         loader.setDDSLoader(new DDSLoader());
         var self = this;
         loader.load(url, function (data) {
-            var gltf = data;
+            let gltf = data;
             let object = gltf.scene;
             let animations = gltf.animations;
             self.mixer = new THREE.AnimationMixer(object);
-            for (var i = 0; i < animations.length; i++) {
-                var animation = animations[ i ];
+            for (let i = 0; i < animations.length; i++) {
+                let animation = animations[ i ];
                 if (time) {
                     animation.duration = time;
                 }
-                var action = self.mixer.clipAction(animation);
+                let action = self.mixer.clipAction(animation);
                 action.play();
             }
             self.add_obj(object);
@@ -192,16 +197,16 @@ var MultiScene = {
         }, undefined, function (error) {
             console.error(error);
         });
-    },
+    }
 
-    init_scene: function (sceneInfo) {
+    init_scene(sceneInfo) {
 
         let fog = this.json[this.sname]['fog'];
 
         this.scene.fog = new THREE.Fog(new THREE.Color(fog.color), fog.near, fog.far);
         this.scene.add(this.camera);
 
-        var ambient = new THREE.AmbientLight(this.json[this.sname]['ambient']);
+        let ambient = new THREE.AmbientLight(this.json[this.sname]['ambient']);
         this.scene.add(ambient);
 
         let lgt = this.json[this.sname]['light'];
@@ -226,27 +231,27 @@ var MultiScene = {
         this.gltf_load(sceneInfo.url, sceneInfo.animationTime);
         this.camera.position.copy(sceneInfo.cameraPos);
 
-    },
+    }
 
-    add_obj: function (obj) {
+    add_obj(obj) {
         this.scene.add(obj);
-    },
+    }
 
-    on_window_resize: function () {
-        MultiScene.camera.aspect = MultiScene.container.offsetWidth / MultiScene.container.offsetHeight;
-        MultiScene.camera.updateProjectionMatrix();
-        MultiScene.renderer.setSize(window.innerWidth, window.innerHeight);
-    },
+    on_window_resize() {
+        this.camera.aspect = this.container.offsetWidth / this.container.offsetHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
 
-    animate: function () {
-        requestAnimationFrame(MultiScene.animate);
-        if (MultiScene.json[MultiScene.sname]['animation'])
-            MultiScene.mixer.update(MultiScene.clock.getDelta());
-        MultiScene.controls.update();
-        MultiScene.render();
-    },
+    animate() {
+        requestAnimationFrame(mScene.animate);
+        if (mScene.json[mScene.sname]['animation'])
+            mScene.mixer.update(mScene.clock.getDelta());
+        mScene.controls.update();
+        mScene.render();
+    }
 
-    figure_scroll_rotate: function (d) {
+    figure_scroll_rotate(d) {
         if (this.json[this.sname]['extra_func'].indexOf('add_sphere') !== -1) {
             this.figure.sphere.forEach((element) => {
                 element.rotation.z += 0.01 * d;
@@ -256,15 +261,15 @@ var MultiScene = {
                 element.scale.z -= 0.008 * d;
             });
         }
-    },
+    }
 
-    rotate_scene: function (d) {
+    rotate_scene(d) {
         if (this.json[this.sname]['extra_func'].indexOf('rotate_scene') !== -1) {
             this.scene.rotation.x += 0.01 * d;
         }
-    },
+    }
 
-    geom_anim: function () {
+    geom_anim() {
         if (this.json[this.sname]['extra_func'].indexOf('add_cube') !== -1) {
             this.figure.cubes.forEach((element) => {
                 element.rotation.x += element.random / 10000;
@@ -272,10 +277,10 @@ var MultiScene = {
                 element.rotation.z += element.random / 10000;
             });
         }
-    },
+    }
 
-    post_render: function () {
-        if (this.postprocessing.enabled) {
+    post_render() {
+        if (this.postprocessing) {
             this.clipPosition.x = this.sunPosition.x;
             this.clipPosition.y = this.sunPosition.y;
             this.clipPosition.z = this.sunPosition.z;
@@ -290,8 +295,8 @@ var MultiScene = {
             this.postprocessing.godraysFakeSunUniforms.vSunPositionScreenSpace.value.copy(this.screenSpacePosition);
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
             this.renderer.clear(true, true, false);
-            var sunsqH = 0.8 * window.innerHeight; // 0.74 depends on extent of sun from shader
-            var sunsqW = 0.8 * window.innerHeight; // both depend on height because sun is aspect-corrected
+            let sunsqH = 0.8 * window.innerHeight; // 0.74 depends on extent of sun from shader
+            let sunsqW = 0.8 * window.innerHeight; // both depend on height because sun is aspect-corrected
             this.screenSpacePosition.x *= window.innerWidth;
             this.screenSpacePosition.y *= window.innerHeight;
             this.renderer.setScissor(this.screenSpacePosition.x - sunsqW / 2, this.screenSpacePosition.y - sunsqH / 2, sunsqW, sunsqH);
@@ -314,8 +319,8 @@ var MultiScene = {
             this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysDepthMask;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureDepthMask);
             this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
-            var filterLen = .8;
-            var TAPS_PER_PASS = 6.0;
+            let filterLen = .8;
+            let TAPS_PER_PASS = 6.0;
             this.filterGodRays(this.postprocessing.rtTextureDepthMask.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[0]));
             this.filterGodRays(this.postprocessing.rtTextureGodRays2.texture, this.postprocessing.rtTextureGodRays1, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[1]));
             this.filterGodRays(this.postprocessing.rtTextureGodRays1.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[2]));
@@ -327,18 +332,18 @@ var MultiScene = {
             this.postprocessing.scene.overrideMaterial = null;
 
         }
-    },
+    }
 
-    render: function () {
+    render() {
         this.geom_anim();
         this.post_render();
-    },
+    }
 
-    getStepSize: function (filterLen, tapsPerPass, pass) {
+    getStepSize(filterLen, tapsPerPass, pass) {
         return filterLen * Math.pow(tapsPerPass, -pass);
-    },
+    }
 
-    add_img: function (name, coord) {
+    add_img(name, coord) {
         let loader = new THREE.TextureLoader();
         let geometry, material;
         let self = this;
@@ -351,13 +356,13 @@ var MultiScene = {
             cube.position.z = coord[2];
             self.scene.add(cube);
         });
-    },
+    }
 
-    rand_int: function (min, max) {
+    rand_int(min, max) {
         return min + Math.floor((max - min) * Math.random());
-    },
+    }
 
-    add_cube: function () {
+    add_cube() {
         let loader = new THREE.TextureLoader();
         let txt = Math.floor(Math.random() * Math.floor(14)) + 1;
         let self = this;
@@ -376,9 +381,9 @@ var MultiScene = {
             self.scene.add(cube);
             self.figure.cubes.push(cube);
         });
-    },
+    }
 
-    add_sphere: function () {
+    add_sphere() {
         let loader = new THREE.TextureLoader();
         let self = this;
         loader.load('/assets/meta/multi/texture/bone.jpg', function (texture) {
@@ -392,66 +397,67 @@ var MultiScene = {
             self.scene.add(sphere);
             self.figure.sphere.push(sphere);
         });
-    },
+    }
 
-    scroll_do: function (coord, curve) {
+    scroll_do(coord, curve) {
+        let self = this;
         $.doTimeout('loop' + coord, 1, function () {
-            if (Math.abs(MultiScene.camera.position[coord] - curve[coord]) > 1) {
-                let tmp = (MultiScene.camera.position[coord] > curve[coord]) ? -1 : 1;
-                if (Math.abs(MultiScene.camera.position[coord] - curve[coord]) > (MultiScene.scroll_dist * 10)) {
-                    curve[coord] += (MultiScene.scroll_dist * 2) * tmp * (-1);
+            if (Math.abs(self.camera.position[coord] - curve[coord]) > 1) {
+                let tmp = (self.camera.position[coord] > curve[coord]) ? -1 : 1;
+                if (Math.abs(self.camera.position[coord] - curve[coord]) > (self.scroll_dist * 10)) {
+                    curve[coord] += (self.scroll_dist * 2) * tmp * (-1);
                 }
-                MultiScene.camera.position[coord] += Math.abs(MultiScene.camera.position[coord] - curve[coord]) / (MultiScene.scroll_dist * 10) * tmp;
-                if (MultiScene.camera.position.x < 4) { //проверка на окончание прокрутки
-                    MultiScene.refresh();
+                self.camera.position[coord] += Math.abs(self.camera.position[coord] - curve[coord]) / (self.scroll_dist * 10) * tmp;
+                if (self.camera.position.x < 4) { //проверка на окончание прокрутки
+                    self.refresh();
                 }
                 return true;
             } else {
                 return false;
             }
         });
-    },
+    }
 
-    do_step: function (d) {
+    do_step(d) {
         let nd = (d > 0) ? 1 : (-1);
         this.step += this.scroll_dist * (nd);
         return nd;
-    },
+    }
 
-    onWheel: function (e) {
+    onWheel(e) {
 
         let delta;
         if (this.mobile) {
             delta = this.mob_delta;
-            MultiScene.scroll_dist = 10;
+            this.scroll_dist = 10;
         } else {
             e = e || window.event;
             delta = (e !== undefined) ? e.deltaY || e.detail || e.wheelDelta : 20;
         }
 
-        delta = MultiScene.do_step(delta);
-        MultiScene.figure_scroll_rotate(delta);
-        MultiScene.rotate_scene(delta);
-        MultiScene.step = (MultiScene.step < 0) ? 0 : MultiScene.step;
-        let curve_coord = MultiScene.spline.getPoint(MultiScene.step / 600);
-        MultiScene.scroll_do('y', curve_coord);
-        MultiScene.scroll_do('z', curve_coord);
-        MultiScene.scroll_do('x', curve_coord);
-        MultiScene.scroll_dist = MultiScene.speed_in_end(5);
+        delta = this.do_step(delta);
+        this.figure_scroll_rotate(delta);
+        this.rotate_scene(delta);
+        this.step = (this.step < 0) ? 0 : this.step;
+        let curve_coord = this.spline.getPoint(this.step / 600);
+        this.scroll_do('y', curve_coord);
+        this.scroll_do('z', curve_coord);
+        this.scroll_do('x', curve_coord);
+        this.scroll_dist = this.speed_in_end(5);
 
-        if (!MultiScene.json[MultiScene.sname]['animation'])
-            MultiScene.mixer.update(curve_coord.x / 2000);
-    },
+        if (!this.json[this.sname]['animation'])
+            this.mixer.update(curve_coord.x / 2000);
+    }
 
-    speed_in_end: function (max_speed) {
+    speed_in_end(max_speed) {
         let res = max_speed;
-        if (MultiScene.camera.position.x < 400 && this.json[this.sname]['slow_end_speed']) {
-            res = (MultiScene.camera.position.x < 200) ? (res / 4) : (res / 2);
+        if (this.camera.position.x < 400 && this.json[this.sname]['slow_end_speed']) {
+            res = (this.camera.position.x < 200) ? (res / 4) : (res / 2);
         }
         return res;
-    },
+    }
 
-    init_postprocessing: function (renderTargetWidth, renderTargetHeight) {
+    init_postprocessing(renderTargetWidth, renderTargetHeight) {
         this.postprocessing.scene = new THREE.Scene();
 
         this.postprocessing.camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -10000, 10000);
@@ -459,18 +465,18 @@ var MultiScene = {
 
         this.postprocessing.scene.add(this.postprocessing.camera);
 
-        var pars = {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat};
+        let pars = {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat};
         this.postprocessing.rtTextureColors = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
 
         this.postprocessing.rtTextureDepth = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
         this.postprocessing.rtTextureDepthMask = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
 
-        var adjustedWidth = renderTargetWidth * this.godrayRenderTargetResolutionMultiplier;
+        let adjustedWidth = renderTargetWidth * this.godrayRenderTargetResolutionMultiplier;
         var adjustedHeight = renderTargetHeight * this.godrayRenderTargetResolutionMultiplier;
         this.postprocessing.rtTextureGodRays1 = new THREE.WebGLRenderTarget(adjustedWidth, adjustedHeight, pars);
         this.postprocessing.rtTextureGodRays2 = new THREE.WebGLRenderTarget(adjustedWidth, adjustedHeight, pars);
 
-        var godraysMaskShader = GodRaysDepthMaskShader;
+        let godraysMaskShader = GodRaysDepthMaskShader;
         this.postprocessing.godrayMaskUniforms = THREE.UniformsUtils.clone(godraysMaskShader.uniforms);
         this.postprocessing.materialGodraysDepthMask = new THREE.ShaderMaterial({
             uniforms: this.postprocessing.godrayMaskUniforms,
@@ -478,7 +484,7 @@ var MultiScene = {
             fragmentShader: godraysMaskShader.fragmentShader
         });
 
-        var godraysGenShader = GodRaysGenerateShader;
+        let godraysGenShader = GodRaysGenerateShader;
         this.postprocessing.godrayGenUniforms = THREE.UniformsUtils.clone(godraysGenShader.uniforms);
         this.postprocessing.materialGodraysGenerate = new THREE.ShaderMaterial({
             uniforms: this.postprocessing.godrayGenUniforms,
@@ -486,7 +492,7 @@ var MultiScene = {
             fragmentShader: godraysGenShader.fragmentShader
         });
 
-        var godraysCombineShader = GodRaysCombineShader;
+        let godraysCombineShader = GodRaysCombineShader;
         this.postprocessing.godrayCombineUniforms = THREE.UniformsUtils.clone(godraysCombineShader.uniforms);
         this.postprocessing.materialGodraysCombine = new THREE.ShaderMaterial({
             uniforms: this.postprocessing.godrayCombineUniforms,
@@ -494,10 +500,10 @@ var MultiScene = {
             fragmentShader: godraysCombineShader.fragmentShader
         });
 
-        var godraysFakeSunShader = GodRaysFakeSunShader;
+        let godraysFakeSunShader = GodRaysFakeSunShader;
         this.postprocessing.godraysFakeSunUniforms = THREE.UniformsUtils.clone(godraysFakeSunShader.uniforms);
         this.postprocessing.materialGodraysFakeSun = new THREE.ShaderMaterial({
-            uniforms: this.postprocessing.godraysFakeSunUniforms,
+            uniforms: this.postprocessing.godrayMaskUniforms,
             vertexShader: godraysFakeSunShader.vertexShader,
             fragmentShader: godraysFakeSunShader.fragmentShader
         });
@@ -512,55 +518,55 @@ var MultiScene = {
                 );
         this.postprocessing.quad.position.z = -9900;
         this.postprocessing.scene.add(this.postprocessing.quad);
-    },
+    }
 
-    filterGodRays: function (inputTex, renderTarget, stepSize) {
+    filterGodRays(inputTex, renderTarget, stepSize) {
         this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysGenerate;
         this.postprocessing.godrayGenUniforms[ "fStepSize" ].value = stepSize;
         this.postprocessing.godrayGenUniforms[ "tInput" ].value = inputTex;
         this.renderer.setRenderTarget(renderTarget);
         this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
         this.postprocessing.scene.overrideMaterial = null;
-    },
+    }
 
-    lookStop: function (e) {
-
+    lookStop(e) {
         let r = false;
-        for (var key in MultiScene.keys) {
-            if (e === MultiScene.keys[key].code) {
-                MultiScene.keys[key].down = false;
-                MultiScene.keys[key].smooth = true;
+        for (let key in this.keys) {
+            if (e === this.keys[key].code) {
+                this.keys[key].down = false;
+                this.keys[key].smooth = true;
             }
-            r += MultiScene.keys[key].down;
+            r += this.keys[key].down;
         }
         if (r === 0) {
-            MultiScene.lookFlag = false;
+            this.lookFlag = false;
         }
-    },
+    }
 
-    lookAtTarget: function (e) {
-        for (var key in MultiScene.keys) {
-            if (e === MultiScene.keys[key]['code']) {
-                MultiScene.keys[key].down = true;
-                MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param'];
+    lookAtTarget(e) {
+        for (let key in this.keys) {
+            if (e === this.keys[key]['code']) {
+                this.keys[key].down = true;
+                this.view[ this.keys[key]['axis'] ] += this.lookSpeed * this.keys[key]['param'];
 
             }
         }
-        if (!MultiScene.lookFlag) {
-            MultiScene.lookFlag = true;
-            MultiScene.smoothing = 50;
-            $.doTimeout('look', 20, function () {
-                for (var key in MultiScene.keys) {
-                    if (MultiScene.keys[key].down || MultiScene.keys[key].smooth) {
-                        MultiScene.view[ MultiScene.keys[key]['axis'] ] += MultiScene.lookSpeed * MultiScene.keys[key]['param'] + MultiScene.smoothing / 200;
-                        if(MultiScene.smoothing <= 1){
-                            MultiScene.keys[key].smooth = false;
+        if (!this.lookFlag) {
+            this.lookFlag = true;
+            this.smoothing = 50;
+            let self = this;
+            $.doTimeout('look', 5, function () {
+                for (let key in self.keys) {
+                    if (self.keys[key].down || self.keys[key].smooth) {
+                        self.view[ self.keys[key]['axis'] ] += (self.lookSpeed * self.keys[key]['param']);
+                        if (self.smoothing <= 1) {
+                            self.keys[key].smooth = false;
                         }
                     }
                 }
-                MultiScene.controls.target = new THREE.Vector3(MultiScene.view.x, MultiScene.view.y, MultiScene.view.z);
-                if (MultiScene.lookFlag || MultiScene.smoothing > 1) {
-                    MultiScene.smoothing = (MultiScene.smoothing <= 1) ? 50 : MultiScene.smoothing - 1;
+                self.controls.target = new THREE.Vector3(self.view.x, self.view.y, self.view.z);
+                if (self.lookFlag || self.smoothing > 1) {
+                    self.smoothing = (self.smoothing <= 1) ? 50 : self.smoothing - 1;
                     return true;
                 } else {
 
@@ -568,56 +574,66 @@ var MultiScene = {
                 }
             });
         }
-    },
+    }
 
-    refresh: function () {
+    refresh() {
         if (AudioControlls.flag) {
             AudioControlls.effects();
         }
         this.scene.rotation.x = 0;
-        if (this.scene_id + 1 === 14) {
+        if (this.scene_id + 1 === Object.keys(this.json).length) {
             HTMLControlls.lastScene();
-            setTimeout(MultiScene.end_scenes, 700);
+            setTimeout(this.end_scenes, 700);
         } else {
-            MultiScene.figure.cubes = [];
-            MultiScene.figure.sphere = [];
-            MultiScene.step = 0;
-            MultiScene.scroll_dist = 5;
-            MultiScene.camera.position.x = 1000;
-            for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
-                MultiScene.scene.remove(MultiScene.scene.children[i]);
+            delete this.figure;
+            delete this.postprocessing;
+            delete this.controls;
+            delete this.camera;
+            delete this.sunPosition;
+            delete this.clipPosition;
+            delete this.screenSpacePosition;
+            
+            this.step = 0;
+            this.scroll_dist = 5;
+            
+            while (this.scene.children.length > 0) {
+                this.scene.remove(this.scene.children[0]);
             }
-            this.set_scenes((this.scene_id + 1));
+            this.set_scenes((this.scene_id + 1));   
+            
             this.camera_create();
-            MultiScene.onload();
+            this.camera.position.x = 1000;
+            
+            this.onload();
         }
-    },
-    end_scenes: function () {
-        for (let i = MultiScene.scene.children.length - 1; i >= 0; i--) {
-            MultiScene.scene.remove(MultiScene.scene.children[i]);
+    }
+    end_scenes() {
+        for (let i = mScene.scene.children.length - 1; i >= 0; i--) {
+            mScene.scene.remove(mScene.scene.children[i]);
         }
         HTMLControlls.endScene();
     }
-};
+}
+;
 
 // Старт событий и таймеров
 
-MultiScene.json_load(json);
-MultiScene.init(1);
-MultiScene.onload();
+var mScene = new MultiScene(json);
+mScene.init(1);
+mScene.onload();
 
 $('#loader').on('mousewheel', function (e) {
     $.doTimeout('a_scroll');
     $('#play').removeClass("auto_scroll_on");
-    MultiScene.onWheel();
+    mScene.onWheel();
 });
 
 var lastY;
 $('#loader').on('touchmove', function (e) {
 
-    MultiScene.mobile = true;
+    mScene.mobile = true;
     var currentY = e.originalEvent.touches[0].clientY;
-    MultiScene.mob_delta = (currentY > lastY) ? -1 : 1;
+    mScene.mob_delta = (currentY > lastY) ? -1 : 1;
     lastY = currentY;
     $('#loader').trigger('mousewheel');
 });
@@ -639,17 +655,16 @@ $('#play').click(function () {
         sauto = true;
         $('#play').addClass("auto_scroll_on");
         $.doTimeout('a_scroll', 200, function () {
-            MultiScene.onWheel();
+            mScene.onWheel();
             return true;
         });
     }
 });
 
 $("body").keydown(function (e) {
-    MultiScene.lookAtTarget(e.which);
+    mScene.lookAtTarget(e.which);
 });
 
 $("body").keyup(function (e) {
-    MultiScene.lookStop(e.which);
+    mScene.lookStop(e.which);
 });
-
