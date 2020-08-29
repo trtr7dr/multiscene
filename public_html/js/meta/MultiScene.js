@@ -16,7 +16,6 @@ class MultiScene {
 
     constructor(data) {
         this.json = data;
-
     }
 
     set_scenes(id) {
@@ -41,6 +40,7 @@ class MultiScene {
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 1000;
         this.controls.enabled = false;
+        this.camera.position.x = 1000;
     }
 
     init(gltf) {
@@ -49,14 +49,12 @@ class MultiScene {
         this.mob_delta = 0;
         this.clock = new THREE.Clock();
         this.container = document.getElementById('container');
-        //this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
         this.renderer.autoClear = true;
-        this.camera_create();
+
         this.step = 0;
         this.scroll_dist = 5;
-
         this.lookSpeed = 0.5;
         this.view = {
             "x": 0,
@@ -97,7 +95,6 @@ class MultiScene {
         };
         this.godrayRenderTargetResolutionMultiplier = 1.0 / 4.0;
         window.addEventListener('resize', this.on_window_resize, false);
-
     }
 
     set_path() {
@@ -128,6 +125,7 @@ class MultiScene {
 
     onload() {
         this.scene = new THREE.Scene();
+        this.camera_create();
         this.figure = {
             'cubes': [],
             'sphere': []
@@ -197,7 +195,7 @@ class MultiScene {
         let fog = this.json[this.sname]['fog'];
         this.scene.fog = new THREE.Fog(new THREE.Color(fog.color), fog.near, fog.far);
         this.scene.add(this.camera);
-        
+
         let ambient = new THREE.AmbientLight(this.json[this.sname]['ambient']);
         this.scene.add(ambient);
 
@@ -222,7 +220,6 @@ class MultiScene {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.gltf_load(sceneInfo.url, sceneInfo.animationTime);
         this.camera.position.copy(sceneInfo.cameraPos);
-
     }
 
     add_obj(obj) {
@@ -302,7 +299,6 @@ class MultiScene {
             this.scene.overrideMaterial = null;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
             this.renderer.render(this.scene, this.camera);
-
             // Depth
             this.scene.overrideMaterial = this.materialDepth;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureDepth);
@@ -323,7 +319,6 @@ class MultiScene {
             this.renderer.setRenderTarget(null);
             this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
             this.postprocessing.scene.overrideMaterial = null;
-
         }
     }
 
@@ -349,9 +344,7 @@ class MultiScene {
             cube.position.z = coord[2];
             self.scene.add(cube);
             material.dispose();
-
         });
-
     }
 
     rand_int(min, max) {
@@ -427,7 +420,6 @@ class MultiScene {
     }
 
     onWheel(e) {
-
         let delta;
         if (this.mobile) {
             delta = this.mob_delta;
@@ -633,7 +625,6 @@ class MultiScene {
         this.screenSpacePosition = null;
         this.scene = null;
         this.renderer.renderLists.dispose();
-        this.container.removeChild(this.renderer.domElement);
     }
 
     refresh() {
@@ -647,12 +638,11 @@ class MultiScene {
         } else {
             this.step = 0;
             this.scroll_dist = 5;
+
             this.ngOnDestroy();
+            this.null_elements();
 
             this.set_scenes((this.scene_id + 1));
-            this.camera.position.x = 1000;
-            this.null_elements();
-            this.camera_create();
             this.onload();
         }
     }
@@ -660,8 +650,7 @@ class MultiScene {
         mScene.ngOnDestroy();
         HTMLControlls.endScene();
     }
-}
-;
+};
 
 // Старт событий и таймеров
 
