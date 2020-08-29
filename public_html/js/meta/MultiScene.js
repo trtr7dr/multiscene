@@ -18,7 +18,7 @@ class MultiScene {
 
     constructor(data) {
         this.json = data;
-        
+
     }
 
     set_scenes(id) {
@@ -38,6 +38,7 @@ class MultiScene {
     }
 
     camera_create() {
+
         this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 1000;
@@ -51,9 +52,11 @@ class MultiScene {
         this.clock = new THREE.Clock();
         this.container = document.getElementById('container');
 
-        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+
         //this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.scene = new THREE.Scene();
+        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+        this.renderer.autoClear = true;
         this.camera_create();
         this.step = 0;
         this.scroll_dist = 5;
@@ -97,13 +100,15 @@ class MultiScene {
             }
         };
 
-        
+
         this.godrayRenderTargetResolutionMultiplier = 1.0 / 4.0;
-        this.renderer.autoClear = true;
+
         window.addEventListener('resize', this.on_window_resize, false);
+
     }
 
     set_path() {
+        delete this.spline;
         let dots = this.json[this.sname]['path'];
         let vectors = [];
         for (let i = 0; i < Object.keys(dots).length; i++) {
@@ -118,11 +123,11 @@ class MultiScene {
             let material = new THREE.LineBasicMaterial({color: 0xff0000});
             let curveObject = new THREE.Line(geometry, material);
             this.scene.add(curveObject);
+
         }
     }
 
     post_preparation() {
-        
         let ray = this.json[this.sname]['ray'];
         this.sunColor = ray.sun;
         this.sunPosition = new THREE.Vector3(ray.position.x, ray.position.y, ray.position.z);
@@ -131,7 +136,7 @@ class MultiScene {
     }
 
     onload() {
-        delete this.scene;
+
         this.scene = new THREE.Scene();
         this.figure = {
             'cubes': [],
@@ -355,7 +360,10 @@ class MultiScene {
             cube.position.y = coord[1];
             cube.position.z = coord[2];
             self.scene.add(cube);
+            material.dispose();
+
         });
+
     }
 
     rand_int(min, max) {
@@ -380,6 +388,8 @@ class MultiScene {
             cube.random = self.rand_int(-100, 100);
             self.scene.add(cube);
             self.figure.cubes.push(cube);
+            geometry.dispose();
+            material.dispose();
         });
     }
 
@@ -396,11 +406,14 @@ class MultiScene {
             sphere.lightMapIntensity = 2;
             self.scene.add(sphere);
             self.figure.sphere.push(sphere);
+            geometry.dispose();
+            material.dispose();
         });
     }
 
     scroll_do(coord, curve) {
         let self = this;
+        $.doTimeout('loop' + coord);
         $.doTimeout('loop' + coord, 1, function () {
             if (Math.abs(self.camera.position[coord] - curve[coord]) > 1) {
                 let tmp = (self.camera.position[coord] > curve[coord]) ? -1 : 1;
@@ -410,6 +423,7 @@ class MultiScene {
                 self.camera.position[coord] += Math.abs(self.camera.position[coord] - curve[coord]) / (self.scroll_dist * 10) * tmp;
                 if (self.camera.position.x < 4) { //проверка на окончание прокрутки
                     self.refresh();
+                    return false;
                 }
                 return true;
             } else {
@@ -472,7 +486,7 @@ class MultiScene {
         this.postprocessing.rtTextureDepthMask = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
 
         let adjustedWidth = renderTargetWidth * this.godrayRenderTargetResolutionMultiplier;
-        var adjustedHeight = renderTargetHeight * this.godrayRenderTargetResolutionMultiplier;
+        let adjustedHeight = renderTargetHeight * this.godrayRenderTargetResolutionMultiplier;
         this.postprocessing.rtTextureGodRays1 = new THREE.WebGLRenderTarget(adjustedWidth, adjustedHeight, pars);
         this.postprocessing.rtTextureGodRays2 = new THREE.WebGLRenderTarget(adjustedWidth, adjustedHeight, pars);
 
@@ -555,6 +569,7 @@ class MultiScene {
             this.lookFlag = true;
             this.smoothing = 50;
             let self = this;
+            $.doTimeout('look');
             $.doTimeout('look', 5, function () {
                 for (let key in self.keys) {
                     if (self.keys[key].down || self.keys[key].smooth) {
@@ -576,6 +591,60 @@ class MultiScene {
         }
     }
 
+    ngOnDestroy() {
+        while (this.scene.children.length > 0) {
+            let obj = this.scene.children[0];
+            this.scene.remove(obj);
+            this.disposeHierarchy(obj, this.disposeNode);
+
+        }
+        this.scene = null;
+    }
+
+    disposeHierarchy(node, callback) {
+        for (var i = node.children.length - 1; i >= 0; i--) {
+            var child = node.children[i];
+            this.disposeHierarchy(child, callback);
+            callback(child);
+        }
+    }
+
+    disposeNode(node) {
+        if (node.constructor.name === "Mesh") {
+            node.parent = undefined;
+            if (node.geometry) {
+                node.geometry.dispose();
+            }
+
+            let material = node.material;
+            if (material) {
+
+                if (material.map){
+                    material.map.dispose();
+                }
+                if (material.lightMap){
+                    material.lightMap.dispose();
+                }
+                if (material.bumpMap){
+                    material.bumpMap.dispose();
+                }
+                if (material.normalMap){
+                    material.normalMap.dispose();
+                }
+                if (material.specularMap){
+                    material.specularMap.dispose();
+                }
+                if (material.envMap){
+                    material.envMap.dispose();
+                }
+                material.dispose();
+            }
+        } else if (node.constructor.name === "Object3D") {
+            node.parent.remove(node);
+            node.parent = undefined;
+        }
+    }
+
     refresh() {
         if (AudioControlls.flag) {
             AudioControlls.effects();
@@ -585,32 +654,20 @@ class MultiScene {
             HTMLControlls.lastScene();
             setTimeout(this.end_scenes, 700);
         } else {
-            delete this.figure;
-            delete this.postprocessing;
-            delete this.controls;
-            delete this.camera;
-            delete this.sunPosition;
-            delete this.clipPosition;
-            delete this.screenSpacePosition;
-            
             this.step = 0;
             this.scroll_dist = 5;
-            
-            while (this.scene.children.length > 0) {
-                this.scene.remove(this.scene.children[0]);
-            }
-            this.set_scenes((this.scene_id + 1));   
-            
+            this.ngOnDestroy();
+            this.set_scenes((this.scene_id + 1));
             this.camera_create();
             this.camera.position.x = 1000;
-            
+            this.container.removeChild(this.renderer.domElement);
+            this.renderer.renderLists.dispose();
+            this.scene = null;
             this.onload();
         }
     }
     end_scenes() {
-        for (let i = mScene.scene.children.length - 1; i >= 0; i--) {
-            mScene.scene.remove(mScene.scene.children[i]);
-        }
+        this.ngOnDestroy();
         HTMLControlls.endScene();
     }
 }
