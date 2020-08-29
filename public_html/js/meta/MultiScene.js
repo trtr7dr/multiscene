@@ -7,11 +7,9 @@
 "use strict";
 
 import * as THREE from '/three/build/three.module.js';
-
 import { TrackballControls } from '/three/jsm/controls/TrackballControls.js';
 import { GLTFLoader } from '/three/jsm/loaders/GLTFLoader.js';
 import { DDSLoader } from '/three/jsm/loaders/DDSLoader.js';
-
 import { GodRaysFakeSunShader, GodRaysDepthMaskShader, GodRaysCombineShader, GodRaysGenerateShader } from '/three/jsm/shaders/GodRaysShader.js';
 
 class MultiScene {
@@ -24,7 +22,6 @@ class MultiScene {
     set_scenes(id) {
         this.scene_id = id;
         this.sname = 'scene' + id;
-
         let start = this.json[this.sname]['start_position'];
         this.scenes = {
             Scene: {
@@ -38,7 +35,8 @@ class MultiScene {
     }
 
     camera_create() {
-
+        this.camera = null;
+        this.controls = null;
         this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 1000;
@@ -51,8 +49,6 @@ class MultiScene {
         this.mob_delta = 0;
         this.clock = new THREE.Clock();
         this.container = document.getElementById('container');
-
-
         //this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.scene = new THREE.Scene();
         this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
@@ -99,10 +95,7 @@ class MultiScene {
                 'smooth': false
             }
         };
-
-
         this.godrayRenderTargetResolutionMultiplier = 1.0 / 4.0;
-
         window.addEventListener('resize', this.on_window_resize, false);
 
     }
@@ -116,14 +109,12 @@ class MultiScene {
         }
         this.spline = new THREE.CatmullRomCurve3(vectors);
         this.spline.closed = false;
-
         if (this.json[this.sname]['debug']) {
             let points = this.spline.getPoints(50);
             let geometry = new THREE.BufferGeometry().setFromPoints(points);
             let material = new THREE.LineBasicMaterial({color: 0xff0000});
             let curveObject = new THREE.Line(geometry, material);
             this.scene.add(curveObject);
-
         }
     }
 
@@ -136,13 +127,11 @@ class MultiScene {
     }
 
     onload() {
-
         this.scene = new THREE.Scene();
         this.figure = {
             'cubes': [],
             'sphere': []
         };
-
         this.container.style.background = this.json[this.sname]['background'];
         this.container.style.filter = this.json[this.sname]['css']['filter'];
         this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -205,12 +194,10 @@ class MultiScene {
     }
 
     init_scene(sceneInfo) {
-
         let fog = this.json[this.sname]['fog'];
-
         this.scene.fog = new THREE.Fog(new THREE.Color(fog.color), fog.near, fog.far);
         this.scene.add(this.camera);
-
+        
         let ambient = new THREE.AmbientLight(this.json[this.sname]['ambient']);
         this.scene.add(ambient);
 
@@ -250,8 +237,9 @@ class MultiScene {
 
     animate() {
         requestAnimationFrame(mScene.animate);
-        if (mScene.json[mScene.sname]['animation'])
+        if (mScene.json[mScene.sname]['animation']) {
             mScene.mixer.update(mScene.clock.getDelta());
+        }
         mScene.controls.update();
         mScene.render();
     }
@@ -448,7 +436,6 @@ class MultiScene {
             e = e || window.event;
             delta = (e !== undefined) ? e.deltaY || e.detail || e.wheelDelta : 20;
         }
-
         delta = this.do_step(delta);
         this.figure_scroll_rotate(delta);
         this.rotate_scene(delta);
@@ -458,9 +445,9 @@ class MultiScene {
         this.scroll_do('z', curve_coord);
         this.scroll_do('x', curve_coord);
         this.scroll_dist = this.speed_in_end(5);
-
-        if (!this.json[this.sname]['animation'])
+        if (!this.json[this.sname]['animation']) {
             this.mixer.update(curve_coord.x / 2000);
+        }
     }
 
     speed_in_end(max_speed) {
@@ -473,15 +460,11 @@ class MultiScene {
 
     init_postprocessing(renderTargetWidth, renderTargetHeight) {
         this.postprocessing.scene = new THREE.Scene();
-
         this.postprocessing.camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, -10000, 10000);
         this.postprocessing.camera.position.z = 100;
-
         this.postprocessing.scene.add(this.postprocessing.camera);
-
         let pars = {minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat};
         this.postprocessing.rtTextureColors = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
-
         this.postprocessing.rtTextureDepth = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
         this.postprocessing.rtTextureDepthMask = new THREE.WebGLRenderTarget(renderTargetWidth, renderTargetHeight, pars);
 
@@ -523,9 +506,7 @@ class MultiScene {
         });
 
         this.postprocessing.godraysFakeSunUniforms.sunColor.value.setHex(this.sunColor);
-
         this.postprocessing.godrayCombineUniforms.fGodRayIntensity.value = 0.75;
-
         this.postprocessing.quad = new THREE.Mesh(
                 new THREE.PlaneBufferGeometry(1.0, 1.0),
                 this.postprocessing.materialGodraysGenerate
@@ -562,7 +543,6 @@ class MultiScene {
             if (e === this.keys[key]['code']) {
                 this.keys[key].down = true;
                 this.view[ this.keys[key]['axis'] ] += this.lookSpeed * this.keys[key]['param'];
-
             }
         }
         if (!this.lookFlag) {
@@ -584,7 +564,6 @@ class MultiScene {
                     self.smoothing = (self.smoothing <= 1) ? 50 : self.smoothing - 1;
                     return true;
                 } else {
-
                     return false;
                 }
             });
@@ -596,7 +575,6 @@ class MultiScene {
             let obj = this.scene.children[0];
             this.scene.remove(obj);
             this.disposeHierarchy(obj, this.disposeNode);
-
         }
         this.scene = null;
     }
@@ -619,22 +597,22 @@ class MultiScene {
             let material = node.material;
             if (material) {
 
-                if (material.map){
+                if (material.map) {
                     material.map.dispose();
                 }
-                if (material.lightMap){
+                if (material.lightMap) {
                     material.lightMap.dispose();
                 }
-                if (material.bumpMap){
+                if (material.bumpMap) {
                     material.bumpMap.dispose();
                 }
-                if (material.normalMap){
+                if (material.normalMap) {
                     material.normalMap.dispose();
                 }
-                if (material.specularMap){
+                if (material.specularMap) {
                     material.specularMap.dispose();
                 }
-                if (material.envMap){
+                if (material.envMap) {
                     material.envMap.dispose();
                 }
                 material.dispose();
@@ -643,6 +621,19 @@ class MultiScene {
             node.parent.remove(node);
             node.parent = undefined;
         }
+    }
+
+    null_elements() {
+        this.figure = null;
+        this.postprocessing = null;
+        this.controls = null;
+        this.camera = null;
+        this.sunPosition = null;
+        this.clipPosition = null;
+        this.screenSpacePosition = null;
+        this.scene = null;
+        this.renderer.renderLists.dispose();
+        this.container.removeChild(this.renderer.domElement);
     }
 
     refresh() {
@@ -657,17 +648,16 @@ class MultiScene {
             this.step = 0;
             this.scroll_dist = 5;
             this.ngOnDestroy();
+
             this.set_scenes((this.scene_id + 1));
-            this.camera_create();
             this.camera.position.x = 1000;
-            this.container.removeChild(this.renderer.domElement);
-            this.renderer.renderLists.dispose();
-            this.scene = null;
+            this.null_elements();
+            this.camera_create();
             this.onload();
         }
     }
     end_scenes() {
-        this.ngOnDestroy();
+        mScene.ngOnDestroy();
         HTMLControlls.endScene();
     }
 }
