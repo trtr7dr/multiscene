@@ -34,8 +34,6 @@ class MultiScene {
     }
 
     camera_create() {
-        this.camera = null;
-        this.controls = null;
         this.camera = new THREE.PerspectiveCamera(this.json[this.sname]['perspective'], this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
         this.controls = new TrackballControls(this.camera, this.renderer.domElement);
         this.controls.maxDistance = 1000;
@@ -49,9 +47,8 @@ class MultiScene {
         this.mob_delta = 0;
         this.clock = new THREE.Clock();
         this.container = document.getElementById('container');
-        this.scene = new THREE.Scene();
-        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-        this.renderer.autoClear = true;
+        //this.scene = new THREE.Scene();
+
 
         this.step = 0;
         this.scroll_dist = 5;
@@ -94,11 +91,10 @@ class MultiScene {
             }
         };
         this.godrayRenderTargetResolutionMultiplier = 1.0 / 4.0;
-        window.addEventListener('resize', this.on_window_resize, false);
+        //window.addEventListener('resize', this.on_window_resize, false);
     }
 
     set_path() {
-        delete this.spline;
         let dots = this.json[this.sname]['path'];
         let vectors = [];
         for (let i = 0; i < Object.keys(dots).length; i++) {
@@ -125,7 +121,15 @@ class MultiScene {
 
     onload() {
         this.scene = new THREE.Scene();
+        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+
         this.camera_create();
+        this.renderer.autoClear = true;
+        this.renderer.autoClearColor = true;
+        this.renderer.autoClearDepth = true;
+        this.renderer.autoClearStencil = true;
+        this.renderer.debug.checkShaderErrors = false;
+
         this.figure = {
             'cubes': [],
             'sphere': []
@@ -170,6 +174,7 @@ class MultiScene {
         loader.setDDSLoader(new DDSLoader());
         var self = this;
         loader.load(url, function (data) {
+
             let gltf = data;
             let object = gltf.scene;
             let animations = gltf.animations;
@@ -186,6 +191,7 @@ class MultiScene {
             self.on_window_resize();
             self.animate();
             HTMLControlls.gltfReady();
+
         }, undefined, function (error) {
             console.error(error);
         });
@@ -286,11 +292,11 @@ class MultiScene {
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
             this.renderer.clear(true, true, false);
             let sunsqH = 0.8 * window.innerHeight; // 0.74 depends on extent of sun from shader
-            let sunsqW = 0.8 * window.innerHeight; // both depend on height because sun is aspect-corrected
-            this.screenSpacePosition.x *= window.innerWidth;
-            this.screenSpacePosition.y *= window.innerHeight;
+            let sunsqW = sunsqH; // both depend on height because sun is aspect-corrected
+//            this.screenSpacePosition.x *= window.innerWidth;
+//            this.screenSpacePosition.y *= window.innerHeight;
             this.renderer.setScissor(this.screenSpacePosition.x - sunsqW / 2, this.screenSpacePosition.y - sunsqH / 2, sunsqW, sunsqH);
-            this.renderer.setScissorTest(true);
+            //this.renderer.setScissorTest(true);
             this.postprocessing.godraysFakeSunUniforms[ "fAspect" ].value = window.innerWidth / window.innerHeight;
             this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysFakeSun;
             this.renderer.setRenderTarget(this.postprocessing.rtTextureColors);
@@ -310,9 +316,9 @@ class MultiScene {
             this.renderer.render(this.postprocessing.scene, this.postprocessing.camera);
             let filterLen = .8;
             let TAPS_PER_PASS = 6.0;
-            this.filterGodRays(this.postprocessing.rtTextureDepthMask.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[0]));
-            this.filterGodRays(this.postprocessing.rtTextureGodRays2.texture, this.postprocessing.rtTextureGodRays1, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[1]));
-            this.filterGodRays(this.postprocessing.rtTextureGodRays1.texture, this.postprocessing.rtTextureGodRays2, this.getStepSize(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[2]));
+            this.filter_god_rays(this.postprocessing.rtTextureDepthMask.texture, this.postprocessing.rtTextureGodRays2, this.get_step_size(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[0]));
+            this.filter_god_rays(this.postprocessing.rtTextureGodRays2.texture, this.postprocessing.rtTextureGodRays1, this.get_step_size(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[1]));
+            this.filter_god_rays(this.postprocessing.rtTextureGodRays1.texture, this.postprocessing.rtTextureGodRays2, this.get_step_size(filterLen, TAPS_PER_PASS, this.json[this.sname].ray.params[2]));
             this.postprocessing.godrayCombineUniforms[ "tColors" ].value = this.postprocessing.rtTextureColors.texture;
             this.postprocessing.godrayCombineUniforms[ "tGodRays" ].value = this.postprocessing.rtTextureGodRays2.texture;
             this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysCombine;
@@ -325,9 +331,10 @@ class MultiScene {
     render() {
         this.geom_anim();
         this.post_render();
+        //this.renderer.render( this.scene, this.camera );
     }
 
-    getStepSize(filterLen, tapsPerPass, pass) {
+    get_step_size(filterLen, tapsPerPass, pass) {
         return filterLen * Math.pow(tapsPerPass, -pass);
     }
 
@@ -392,6 +399,12 @@ class MultiScene {
         });
     }
 
+    scroll_timer_stop() {
+        $.doTimeout('loopx');
+        $.doTimeout('loopy');
+        $.doTimeout('loopz');
+    }
+
     scroll_do(coord, curve) {
         let self = this;
         $.doTimeout('loop' + coord);
@@ -419,7 +432,7 @@ class MultiScene {
         return nd;
     }
 
-    onWheel(e) {
+    on_wheel(e) {
         let delta;
         if (this.mobile) {
             delta = this.mob_delta;
@@ -507,7 +520,7 @@ class MultiScene {
         this.postprocessing.scene.add(this.postprocessing.quad);
     }
 
-    filterGodRays(inputTex, renderTarget, stepSize) {
+    filter_god_rays(inputTex, renderTarget, stepSize) {
         this.postprocessing.scene.overrideMaterial = this.postprocessing.materialGodraysGenerate;
         this.postprocessing.godrayGenUniforms[ "fStepSize" ].value = stepSize;
         this.postprocessing.godrayGenUniforms[ "tInput" ].value = inputTex;
@@ -516,7 +529,7 @@ class MultiScene {
         this.postprocessing.scene.overrideMaterial = null;
     }
 
-    lookStop(e) {
+    look_stop(e) {
         let r = false;
         for (let key in this.keys) {
             if (e === this.keys[key].code) {
@@ -530,7 +543,7 @@ class MultiScene {
         }
     }
 
-    lookAtTarget(e) {
+    look_at_target(e) {
         for (let key in this.keys) {
             if (e === this.keys[key]['code']) {
                 this.keys[key].down = true;
@@ -562,33 +575,38 @@ class MultiScene {
         }
     }
 
-    ngOnDestroy() {
-        while (this.scene.children.length > 0) {
-            let obj = this.scene.children[0];
-            this.scene.remove(obj);
-            this.disposeHierarchy(obj, this.disposeNode);
-        }
-        this.scene = null;
+    dispose_scene() {
+        let self = this;
+        self.scroll_timer_stop();
+        this.scene.traverse(function (object) {
+            self.scroll_timer_stop();
+            if (object.type === "Mesh" || object.type === "Group") {
+                self.dispose_hierarchy(object, self.dispose_node);
+                self.scene.remove(object);
+                object = null;
+            }
+        });
     }
 
-    disposeHierarchy(node, callback) {
+    dispose_hierarchy(node, callback) {
         for (var i = node.children.length - 1; i >= 0; i--) {
             var child = node.children[i];
-            this.disposeHierarchy(child, callback);
+            this.dispose_hierarchy(child, callback);
             callback(child);
         }
     }
 
-    disposeNode(node) {
+    dispose_node(node) {
         if (node.constructor.name === "Mesh") {
             node.parent = undefined;
             if (node.geometry) {
                 node.geometry.dispose();
             }
-
+            if (node.geometry) {
+                node.geometry.dispose();
+            }
             let material = node.material;
             if (material) {
-
                 if (material.map) {
                     material.map.dispose();
                 }
@@ -608,16 +626,33 @@ class MultiScene {
                     material.envMap.dispose();
                 }
                 material.dispose();
+                material = undefined;
             }
         } else if (node.constructor.name === "Object3D") {
             node.parent.remove(node);
-            node.parent = undefined;
+            node.parent = null;
         }
+    }
+
+    dispose_postprocessing() {
+        this.postprocessing.godrayMaskUniforms[ "tInput" ].value.dispose();
+        this.postprocessing.godrayGenUniforms[ "tInput" ].value.dispose();
+        this.postprocessing.godrayCombineUniforms[ "tColors" ].value.dispose();
+        this.postprocessing.rtTextureColors.dispose();
+        this.postprocessing.rtTextureDepth.dispose();
+        this.postprocessing.rtTextureDepthMask.dispose();
+        this.postprocessing.rtTextureGodRays1.dispose();
+        this.postprocessing.rtTextureGodRays2.dispose();
+        this.postprocessing.materialGodraysDepthMask.dispose();
+        this.postprocessing.materialGodraysGenerate.dispose();
+        this.postprocessing.materialGodraysCombine.dispose();
+        this.postprocessing.materialGodraysFakeSun.dispose();
     }
 
     null_elements() {
         this.figure = null;
         this.postprocessing = null;
+        this.controls.dispose();
         this.controls = null;
         this.camera = null;
         this.sunPosition = null;
@@ -625,6 +660,8 @@ class MultiScene {
         this.screenSpacePosition = null;
         this.scene = null;
         this.renderer.renderLists.dispose();
+        this.renderer.dispose();
+        this.container.removeChild(this.renderer.domElement);
     }
 
     refresh() {
@@ -632,28 +669,34 @@ class MultiScene {
             AudioControlls.effects();
         }
         this.scene.rotation.x = 0;
-        if (this.scene_id + 1 === Object.keys(this.json).length) {
+        if (this.scene_id === Object.keys(this.json).length) {
             HTMLControlls.lastScene();
             setTimeout(this.end_scenes, 700);
         } else {
             this.step = 0;
             this.scroll_dist = 5;
 
-            this.ngOnDestroy();
+            this.dispose_scene();
+            this.dispose_postprocessing();
+            this.renderer.clear(true, true, true);
             this.null_elements();
 
             this.set_scenes((this.scene_id + 1));
             this.onload();
         }
     }
+    
     end_scenes() {
-        mScene.ngOnDestroy();
+        mScene.dispose_scene();
+        mScene.dispose_postprocessing();
+        for (let i = mScene.scene.children.length - 1; i >= 0; i--) {
+            mScene.scene.remove(mScene.scene.children[i]);
+        }
         HTMLControlls.endScene();
     }
-};
+}
 
 // Старт событий и таймеров
-
 var mScene = new MultiScene(json);
 mScene.init(1);
 mScene.onload();
@@ -661,12 +704,11 @@ mScene.onload();
 $('#loader').on('mousewheel', function (e) {
     $.doTimeout('a_scroll');
     $('#play').removeClass("auto_scroll_on");
-    mScene.onWheel();
+    mScene.on_wheel();
 });
 
 var lastY;
 $('#loader').on('touchmove', function (e) {
-
     mScene.mobile = true;
     var currentY = e.originalEvent.touches[0].clientY;
     mScene.mob_delta = (currentY > lastY) ? -1 : 1;
@@ -682,7 +724,6 @@ if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|BB|PlayBook|IEMobile|Windows Phon
 
 var sauto = false;
 $('#play').click(function () {
-
     if (sauto) {
         sauto = false;
         $.doTimeout('a_scroll');
@@ -691,16 +732,16 @@ $('#play').click(function () {
         sauto = true;
         $('#play').addClass("auto_scroll_on");
         $.doTimeout('a_scroll', 200, function () {
-            mScene.onWheel();
+            mScene.on_wheel();
             return true;
         });
     }
 });
 
 $("body").keydown(function (e) {
-    mScene.lookAtTarget(e.which);
+    mScene.look_at_target(e.which);
 });
 
 $("body").keyup(function (e) {
-    mScene.lookStop(e.which);
+    mScene.look_stop(e.which);
 });
