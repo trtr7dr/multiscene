@@ -6,3 +6,6 @@
 [dotimeout](https://github.com/cowboy/jquery-dotimeout) &mdash;
 
 Пример: https://sacri.ru/mmeta
+
+UPD:
+Переписываю, так как не везде корректно очищалась память.
