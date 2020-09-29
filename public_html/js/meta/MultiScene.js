@@ -5,17 +5,84 @@
  */
 
 "use strict";
-
 import * as THREE from '/three/build/three.module.js';
 import { TrackballControls } from '/three/jsm/controls/TrackballControls.js';
 import { GLTFLoader } from '/three/jsm/loaders/GLTFLoader.js';
 import { DDSLoader } from '/three/jsm/loaders/DDSLoader.js';
 import { GodRaysFakeSunShader, GodRaysDepthMaskShader, GodRaysCombineShader, GodRaysGenerateShader } from '/three/jsm/shaders/GodRaysShader.js';
 
+class ResourceTracker {
+    constructor() {
+        this.resources = new Set();
+    }
+    track(resource) {
+        if (!resource) {
+            return resource;
+        }
+
+        // handle children and when material is an array of materials or
+        // uniform is array of textures
+        if (Array.isArray(resource)) {
+            resource.forEach(resource => this.track(resource));
+            return resource;
+        }
+
+        if (resource.dispose || resource instanceof THREE.Object3D) {
+            this.resources.add(resource);
+        }
+        if (resource instanceof THREE.Object3D) {
+            this.track(resource.geometry);
+            this.track(resource.material);
+            this.track(resource.children);
+        } else if (resource instanceof THREE.Material) {
+            // We have to check if there are any textures on the material
+            for (const value of Object.values(resource)) {
+                if (value instanceof THREE.Texture) {
+                    this.track(value);
+                }
+            }
+            // We also have to check if any uniforms reference textures or arrays of textures
+            if (resource.uniforms) {
+                for (const value of Object.values(resource.uniforms)) {
+                    if (value) {
+                        const uniformValue = value.value;
+                        if (uniformValue instanceof THREE.Texture ||
+                                Array.isArray(uniformValue)) {
+                            this.track(uniformValue);
+                        }
+                    }
+                }
+            }
+        }
+        return resource;
+    }
+    untrack(resource) {
+        this.resources.delete(resource);
+    }
+    dispose() {
+        for (const resource of this.resources) {
+
+            if (resource instanceof THREE.Object3D) {
+                if (resource.parent) {
+                    resource.parent.remove(resource);
+                }
+            }
+            if (resource.dispose) {
+                resource.dispose();
+            }
+        }
+        this.resources.clear();
+    }
+}
+
 class MultiScene {
 
     constructor(data) {
         this.json = data;
+        this.resTracker = new ResourceTracker();
+        this.track = this.resTracker.track.bind(this.resTracker);
+         this.loader = new GLTFLoader();
+        this.loader.setDDSLoader(new DDSLoader());
     }
 
     set_scenes(id) {
@@ -104,9 +171,9 @@ class MultiScene {
         this.spline.closed = false;
         if (this.json[this.sname]['debug']) {
             let points = this.spline.getPoints(50);
-            let geometry = new THREE.BufferGeometry().setFromPoints(points);
-            let material = new THREE.LineBasicMaterial({color: 0xff0000});
-            let curveObject = new THREE.Line(geometry, material);
+            let geometry = this.track(new THREE.BufferGeometry().setFromPoints(points));
+            let material = this.track(new THREE.LineBasicMaterial({color: 0xff0000}));
+            let curveObject = this.track(new THREE.Line(geometry, material));
             this.scene.add(curveObject);
         }
     }
@@ -169,31 +236,31 @@ class MultiScene {
         }
     }
 
-    gltf_load(url, time) {
-        let loader = new GLTFLoader();
-        loader.setDDSLoader(new DDSLoader());
-        var self = this;
-        loader.load(url, function (data) {
-
-            let gltf = data;
-            let object = gltf.scene;
-            let animations = gltf.animations;
-            self.mixer = new THREE.AnimationMixer(object);
-            for (let i = 0; i < animations.length; i++) {
-                let animation = animations[ i ];
-                if (time) {
-                    animation.duration = time;
-                }
-                let action = self.mixer.clipAction(animation);
-                action.play();
+    gltf_done(gltf, time) {
+        let object = this.track(gltf.scene);
+        let animations = gltf.animations;
+        this.mixer = new THREE.AnimationMixer(object);
+        for (let i = 0; i < animations.length; i++) {
+            let animation = animations[ i ];
+            if (time) {
+                animation.duration = time;
             }
-            self.add_obj(object);
-            self.on_window_resize();
-            self.animate();
-            HTMLControlls.gltfReady();
+            let action = this.mixer.clipAction(animation);
+            action.play();
+        }
+        this.add_obj(object);
+        this.on_window_resize();
+        this.animate();
+        HTMLControlls.gltfReady();
+    }
 
-        }, undefined, function (error) {
-            console.error(error);
+    gltf_load(url, time) {
+        let self = this;
+        return new Promise((resolve, reject) => {
+            this.track(this.loader.load(url, function (gltf) {
+                self.gltf_done(gltf);
+            }, undefined, reject));
+
         });
     }
 
@@ -338,22 +405,6 @@ class MultiScene {
         return filterLen * Math.pow(tapsPerPass, -pass);
     }
 
-    add_img(name, coord) {
-        let loader = new THREE.TextureLoader();
-        let geometry, material;
-        let self = this;
-        loader.load('/assets/meta/multi/texture' + name + '.png', function (texture) {
-            geometry = new THREE.BoxGeometry(Math.random(2, 4), 50, 25);
-            material = new THREE.MeshBasicMaterial({map: texture});
-            let cube = new THREE.Mesh(geometry, material);
-            cube.position.x = coord[0];
-            cube.position.y = coord[1];
-            cube.position.z = coord[2];
-            self.scene.add(cube);
-            material.dispose();
-        });
-    }
-
     rand_int(min, max) {
         return min + Math.floor((max - min) * Math.random());
     }
@@ -364,9 +415,9 @@ class MultiScene {
         let self = this;
         loader.load('/assets/meta/multi/texture/' + txt + '.png', function (texture) {
             let rnd = self.rand_int(1, 50);
-            let geometry = new THREE.BoxGeometry(rnd, rnd, rnd);
-            let material = new THREE.MeshBasicMaterial({map: texture});
-            let cube = new THREE.Mesh(geometry, material);
+            let geometry = self.track(new THREE.BoxGeometry(rnd, rnd, rnd));
+            let material = self.track(new THREE.MeshBasicMaterial({map: texture}));
+            let cube = self.track(new THREE.Mesh(geometry, material));
             cube.position.x = self.rand_int(1000, -1000);
             cube.position.y = self.rand_int(-500, 500);
             cube.position.z = self.rand_int(-500, 500);
@@ -385,8 +436,8 @@ class MultiScene {
         let loader = new THREE.TextureLoader();
         let self = this;
         loader.load('/assets/meta/multi/texture/bone.jpg', function (texture) {
-            let geometry = new THREE.SphereGeometry(self.rand_int(1, 10), self.rand_int(1, 10), self.rand_int(1, 10), self.rand_int(1, 20), self.rand_int(1, 10), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20));
-            let material = new THREE.MeshBasicMaterial({map: texture});
+            let geometry = self.track(new THREE.SphereGeometry(self.rand_int(1, 10), self.rand_int(1, 10), self.rand_int(1, 10), self.rand_int(1, 20), self.rand_int(1, 10), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20), self.rand_int(1, 20)));
+            let material = self.track(new THREE.MeshBasicMaterial({map: texture}));
             let sphere = new THREE.Mesh(geometry, material);
             sphere.position.x = self.rand_int(-400, 400);
             sphere.position.y = self.rand_int(-400, 400);
@@ -512,10 +563,10 @@ class MultiScene {
 
         this.postprocessing.godraysFakeSunUniforms.sunColor.value.setHex(this.sunColor);
         this.postprocessing.godrayCombineUniforms.fGodRayIntensity.value = 0.75;
-        this.postprocessing.quad = new THREE.Mesh(
+        this.postprocessing.quad = this.track(new THREE.Mesh(
                 new THREE.PlaneBufferGeometry(1.0, 1.0),
                 this.postprocessing.materialGodraysGenerate
-                );
+                ));
         this.postprocessing.quad.position.z = -9900;
         this.postprocessing.scene.add(this.postprocessing.quad);
     }
@@ -575,64 +626,6 @@ class MultiScene {
         }
     }
 
-    dispose_scene() {
-        let self = this;
-        self.scroll_timer_stop();
-        this.scene.traverse(function (object) {
-            self.scroll_timer_stop();
-            if (object.type === "Mesh" || object.type === "Group") {
-                self.dispose_hierarchy(object, self.dispose_node);
-                self.scene.remove(object);
-                object = null;
-            }
-        });
-    }
-
-    dispose_hierarchy(node, callback) {
-        for (var i = node.children.length - 1; i >= 0; i--) {
-            var child = node.children[i];
-            this.dispose_hierarchy(child, callback);
-            callback(child);
-        }
-    }
-
-    dispose_node(node) {
-        if (node.constructor.name === "Mesh") {
-            node.parent = undefined;
-            if (node.geometry) {
-                node.geometry.dispose();
-            }
-            if (node.geometry) {
-                node.geometry.dispose();
-            }
-            let material = node.material;
-            if (material) {
-                if (material.map) {
-                    material.map.dispose();
-                }
-                if (material.lightMap) {
-                    material.lightMap.dispose();
-                }
-                if (material.bumpMap) {
-                    material.bumpMap.dispose();
-                }
-                if (material.normalMap) {
-                    material.normalMap.dispose();
-                }
-                if (material.specularMap) {
-                    material.specularMap.dispose();
-                }
-                if (material.envMap) {
-                    material.envMap.dispose();
-                }
-                material.dispose();
-                material = undefined;
-            }
-        } else if (node.constructor.name === "Object3D") {
-            node.parent.remove(node);
-            node.parent = null;
-        }
-    }
 
     dispose_postprocessing() {
         this.postprocessing.godrayMaskUniforms[ "tInput" ].value.dispose();
@@ -649,21 +642,6 @@ class MultiScene {
         this.postprocessing.materialGodraysFakeSun.dispose();
     }
 
-    null_elements() {
-        this.figure = null;
-        this.postprocessing = null;
-        this.controls.dispose();
-        this.controls = null;
-        this.camera = null;
-        this.sunPosition = null;
-        this.clipPosition = null;
-        this.screenSpacePosition = null;
-        this.scene = null;
-        this.renderer.renderLists.dispose();
-        this.renderer.dispose();
-        this.container.removeChild(this.renderer.domElement);
-    }
-
     refresh() {
         if (AudioControlls.flag) {
             AudioControlls.effects();
@@ -675,17 +653,15 @@ class MultiScene {
         } else {
             this.step = 0;
             this.scroll_dist = 5;
-
-            this.dispose_scene();
+            this.resTracker.dispose();
             this.dispose_postprocessing();
             this.renderer.clear(true, true, true);
-            this.null_elements();
 
             this.set_scenes((this.scene_id + 1));
             this.onload();
         }
     }
-    
+
     end_scenes() {
         mScene.dispose_scene();
         mScene.dispose_postprocessing();
