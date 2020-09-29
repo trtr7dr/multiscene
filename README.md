@@ -9,3 +9,5 @@
 
 UPD:
 Переписываю, так как не везде корректно очищалась память.
+
+UPD: https://github.com/trtr7dr/ReMultiScene
